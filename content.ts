@@ -1,18 +1,40 @@
 // Anghami PiP Extension - Content Script
 // Handles DOM scraping and communication with the native Anghami player
 
+import type {
+  TrackData,
+  LyricsData,
+  AnghamiScraper as IAnghamiScraper,
+} from "./types";
+
 // Global ready state
 window.anghamiPiPReady = false;
 
-class AnghamiScraper {
+class AnghamiScraper implements IAnghamiScraper {
+  currentTrack: TrackData | null;
+  observers: any[];
+  playerElement: Element | null;
+  lyricsObserver: MutationObserver | null;
+  bodyLyricsObserver: MutationObserver | null;
+  lyricsObservingActive: boolean;
+  _lastNotifiedCurrentLine: string | null;
+  _lyricsElementObserved: Element | null;
+  _lyricsAttachInterval: number | null;
+
   constructor() {
     this.currentTrack = null;
     this.observers = [];
     this.playerElement = null;
+    this.lyricsObserver = null;
+    this.bodyLyricsObserver = null;
+    this.lyricsObservingActive = false;
+    this._lastNotifiedCurrentLine = null;
+    this._lyricsElementObserved = null;
+    this._lyricsAttachInterval = null;
     this.init();
   }
 
-  init() {
+  init(): void {
     // Debug DOM structure
     this.debugDOM();
 
@@ -31,16 +53,16 @@ class AnghamiScraper {
     });
   }
 
-  debugDOM() {}
+  debugDOM(): void {}
 
-  setupPeriodicExtraction() {
+  setupPeriodicExtraction(): void {
     // Extract track data every 5 seconds as fallback
     setInterval(() => {
       this.extractCurrentTrack();
     }, 5000);
   }
 
-  waitForPlayer() {
+  waitForPlayer(): Promise<void> {
     return new Promise((resolve) => {
       const checkPlayer = () => {
         this.playerElement = document.querySelector(".player-wrapper");
@@ -128,12 +150,13 @@ class AnghamiScraper {
     this.lyricsObservingActive = false;
   }
 
-  extractCurrentTrack() {
+  extractCurrentTrack(): TrackData | null {
     try {
-      const trackData = {
+      const repeatState = this.getRepeatState();
+      const trackData: TrackData = {
         title: this.getTrackTitle(),
         artist: this.getArtistName(),
-        coverArt: this.getCoverArt(),
+        coverArt: this.getCoverArt() || "",
         duration: this.getDuration(),
         currentTime: this.getCurrentTime(),
         remainingTime: this.getRemainingTime(),
@@ -141,7 +164,7 @@ class AnghamiScraper {
         isPlaying: this.getPlayState() === "playing",
         isLiked: this.getLikeState(),
         isShuffled: this.getShuffleState(),
-        repeatMode: this.getRepeatState(),
+        repeatMode: repeatState as "none" | "one" | "all",
       };
 
       // Debug individual extractions
@@ -149,6 +172,8 @@ class AnghamiScraper {
       // Always send data (even if empty) to verify communication
       this.currentTrack = trackData;
       this.notifyPiP("trackUpdated", trackData);
+
+      return trackData;
 
       // If no real data found, also send test data to verify communication is working
       if (trackData.title === "No track playing" || !trackData.title) {
@@ -180,15 +205,20 @@ class AnghamiScraper {
       }
     } catch (error) {
       // Send test data even on error
-      const errorTestData = {
+      const errorTestData: TrackData = {
         title: "Error Test - Communication Check",
         artist: "Debug Mode",
+        coverArt: "",
         duration: "0:00",
         currentTime: "0:00",
         progress: 0,
         isPlaying: false,
+        isLiked: false,
+        isShuffled: false,
+        repeatMode: "none",
       };
       this.notifyPiP("trackUpdated", errorTestData);
+      return null;
     }
   }
 
@@ -233,7 +263,7 @@ class AnghamiScraper {
 
     // Fallback: look for any element that might contain title
     const allElements = document.querySelectorAll("span, div, h1, h2, h3");
-    for (const el of allElements) {
+    for (const el of Array.from(allElements)) {
       const text = el.textContent?.trim();
       if (
         text &&
@@ -325,7 +355,7 @@ class AnghamiScraper {
       const element = document.querySelector(selector);
       if (element) {
         // Check for background-image style
-        const style = element.style.backgroundImage;
+        const style = (element as HTMLElement).style.backgroundImage;
         if (style) {
           const match = style.match(/url\(['"]?(.*?)['"]?\)/);
           if (match && match[1]) {
@@ -334,7 +364,7 @@ class AnghamiScraper {
         }
 
         // Check for src attribute (if it's an img tag)
-        const src = element.src;
+        const src = (element as HTMLImageElement).src;
         if (src && src.startsWith("http")) {
           return src;
         }
@@ -396,7 +426,7 @@ class AnghamiScraper {
   }
 
   // Helper: Convert MM:SS or HH:MM:SS to seconds
-  timeToSeconds(timeString) {
+  timeToSeconds(timeString: string): number {
     if (!timeString) return 0;
     const parts = timeString.split(":").map(Number);
     if (parts.length === 2) {
@@ -408,7 +438,7 @@ class AnghamiScraper {
   }
 
   // Helper: Convert seconds to MM:SS or HH:MM:SS
-  secondsToTime(totalSeconds) {
+  secondsToTime(totalSeconds: number): string {
     const hours = Math.floor(totalSeconds / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);
     const seconds = Math.floor(totalSeconds % 60);
@@ -434,7 +464,7 @@ class AnghamiScraper {
       const element = document.querySelector(selector);
       if (element) {
         // Try to get width from style
-        const style = element.style.width;
+        const style = (element as HTMLElement).style.width;
         if (style && typeof style === "string" && style.includes("%")) {
           const percentage = parseFloat(style.replace("%", ""));
           if (!isNaN(percentage)) {
@@ -448,8 +478,10 @@ class AnghamiScraper {
     const leftIndicator = document.querySelector(
       '.stream-controls.indicator[style*="left"]'
     );
-    if (leftIndicator && leftIndicator.style.left) {
-      const percentage = parseFloat(leftIndicator.style.left.replace("%", ""));
+    if (leftIndicator && (leftIndicator as HTMLElement).style.left) {
+      const percentage = parseFloat(
+        (leftIndicator as HTMLElement).style.left.replace("%", "")
+      );
       if (!isNaN(percentage)) {
         return percentage;
       }
@@ -521,7 +553,7 @@ class AnghamiScraper {
       return (
         shuffleIcon.classList.contains("active") ||
         shuffleIcon.classList.contains("selected") ||
-        shuffleIcon.style.color === "rgb(255, 107, 53)"
+        (shuffleIcon as HTMLElement).style.color === "rgb(255, 107, 53)"
       ); // Anghami orange
     }
 
@@ -555,7 +587,7 @@ class AnghamiScraper {
     return "none";
   }
 
-  getLyrics() {
+  getLyrics(): LyricsData | null {
     try {
       // Priority selector order based on actual observed DOM (.mini-lyrics > .mini-lyrics-holder > .lyrics)
       const selectorCandidates = [
@@ -567,13 +599,11 @@ class AnghamiScraper {
         ".lyrics",
       ];
 
-      let lyricsContainer = null;
-      let matchedSelector = null;
+      let lyricsContainer: Element | null = null;
       for (const sel of selectorCandidates) {
         const el = document.querySelector(sel);
         if (el) {
           lyricsContainer = el;
-          matchedSelector = sel;
           break;
         }
       }
@@ -591,7 +621,7 @@ class AnghamiScraper {
         return null;
       }
 
-      const lines = [];
+      const lines: string[] = [];
       lyricsSpans.forEach((span) => {
         // Ignore spans that are structural only (no text & no <br>)
         const text = span.textContent ? span.textContent.trim() : "";
@@ -616,17 +646,35 @@ class AnghamiScraper {
         return null;
       }
 
-      return {
-        lines: filtered,
-        currentLine: this.getCurrentLyricsLine(lyricsContainer),
-        isAvailable: true,
+      const currentLine = this.getCurrentLyricsLine(
+        lyricsContainer as HTMLElement
+      );
+      const currentLineIndex = currentLine ? filtered.indexOf(currentLine) : -1;
+
+      const lyricsData = {
+        lines: filtered.map((text, index) => ({
+          text,
+          startTime: index,
+          endTime: index + 1,
+        })),
+        currentLineIndex: currentLineIndex >= 0 ? currentLineIndex : 0,
+        available: true,
       };
+
+      console.log("🎵 Lyrics detected:", {
+        totalLines: lyricsData.lines.length,
+        currentLineIndex: lyricsData.currentLineIndex,
+        currentLine: currentLine?.substring(0, 30),
+      });
+
+      return lyricsData;
     } catch (error) {
+      console.warn("⚠️ Error getting lyrics:", error);
       return null;
     }
   }
 
-  getCurrentLyricsLine(lyricsContainer) {
+  getCurrentLyricsLine(lyricsContainer: HTMLElement): string | null {
     try {
       // Highlighted/current line variants
       const highlightedSpan = lyricsContainer.querySelector(
@@ -688,23 +736,26 @@ class AnghamiScraper {
       const newLyrics = this.getLyrics();
       if (this.currentTrack) {
         // Check if the current line actually changed (not just styling/class changes)
+        const currentLineText = newLyrics
+          ? newLyrics.lines[newLyrics.currentLineIndex]?.text
+          : null;
         const currentLineChanged =
           !this._lastNotifiedCurrentLine ||
-          this._lastNotifiedCurrentLine !== newLyrics?.currentLine;
+          this._lastNotifiedCurrentLine !== currentLineText;
 
         // Only notify if current line changed or lyrics structure changed
         if (currentLineChanged) {
-          this._lastNotifiedCurrentLine = newLyrics?.currentLine;
-          this.currentTrack.lyrics = newLyrics;
+          this._lastNotifiedCurrentLine = currentLineText;
+          (this.currentTrack as any).lyrics = newLyrics;
           this.notifyPiP("lyricsUpdated", newLyrics);
         }
       }
     });
 
-    const attachObserverTo = (el) => {
+    const attachObserverTo = (el: Element) => {
       if (!el || this._lyricsElementObserved === el) return;
       this._lyricsElementObserved = el;
-      this.lyricsObserver.observe(el, {
+      this.lyricsObserver!.observe(el, {
         childList: true,
         subtree: true,
         attributes: true,
@@ -724,7 +775,9 @@ class AnghamiScraper {
       let attempts = 0;
       this._lyricsAttachInterval = setInterval(() => {
         if (!this.lyricsObservingActive) {
-          clearInterval(this._lyricsAttachInterval);
+          if (this._lyricsAttachInterval !== null) {
+            clearInterval(this._lyricsAttachInterval);
+          }
           this._lyricsAttachInterval = null;
           return;
         }
@@ -734,10 +787,14 @@ class AnghamiScraper {
           document.querySelector("anghami-mini-lyrics");
         if (el) {
           attachObserverTo(el);
-          clearInterval(this._lyricsAttachInterval);
+          if (this._lyricsAttachInterval !== null) {
+            clearInterval(this._lyricsAttachInterval);
+          }
           this._lyricsAttachInterval = null;
         } else if (attempts >= 10) {
-          clearInterval(this._lyricsAttachInterval);
+          if (this._lyricsAttachInterval !== null) {
+            clearInterval(this._lyricsAttachInterval);
+          }
           this._lyricsAttachInterval = null;
         }
       }, 1000);
@@ -754,12 +811,13 @@ class AnghamiScraper {
           const hasLyricsChange = [...addedNodes, ...removedNodes].some(
             (node) => {
               if (node.nodeType !== 1) return false;
+              const element = node as Element;
               if (
-                node.classList?.contains("mini-lyrics") ||
-                node.tagName === "ANGHAMI-MINI-LYRICS" ||
-                (node.querySelector &&
-                  (node.querySelector(".mini-lyrics") ||
-                    node.querySelector("anghami-mini-lyrics")))
+                element.classList?.contains("mini-lyrics") ||
+                element.tagName === "ANGHAMI-MINI-LYRICS" ||
+                (element.querySelector &&
+                  (element.querySelector(".mini-lyrics") ||
+                    element.querySelector("anghami-mini-lyrics")))
               ) {
                 return true;
               }
@@ -774,8 +832,11 @@ class AnghamiScraper {
               this._lastNotifiedCurrentLine = null;
               const newLyrics = this.getLyrics();
               if (this.currentTrack) {
-                this._lastNotifiedCurrentLine = newLyrics?.currentLine;
-                this.currentTrack.lyrics = newLyrics;
+                const currentLineText = newLyrics
+                  ? newLyrics.lines[newLyrics.currentLineIndex]?.text
+                  : null;
+                this._lastNotifiedCurrentLine = currentLineText;
+                (this.currentTrack as any).lyrics = newLyrics;
                 this.notifyPiP("lyricsUpdated", newLyrics);
               }
             }, 500);
@@ -825,7 +886,7 @@ class AnghamiScraper {
     for (const selector of playPauseSelectors) {
       const element = document.querySelector(selector);
       if (element) {
-        element.click();
+        (element as HTMLElement).click();
         return true;
       }
     }
@@ -843,7 +904,7 @@ class AnghamiScraper {
     for (const selector of prevSelectors) {
       const element = document.querySelector(selector);
       if (element) {
-        element.click();
+        (element as HTMLElement).click();
         return true;
       }
     }
@@ -861,7 +922,7 @@ class AnghamiScraper {
     for (const selector of nextSelectors) {
       const element = document.querySelector(selector);
       if (element) {
-        element.click();
+        (element as HTMLElement).click();
         return true;
       }
     }
@@ -878,24 +939,24 @@ class AnghamiScraper {
         ?.closest(".icon");
 
     if (likeButton) {
-      likeButton.click();
+      (likeButton as HTMLElement).click();
     } else {
     }
   }
 
-  toggleShuffle() {
+  toggleShuffle(): void {
     const shuffleButton =
       document.querySelector(".icon.shuffle") ||
       document
         .querySelector('use[xlink\\:href="#all--scrub"]')
         ?.closest(".icon");
     if (shuffleButton) {
-      shuffleButton.click();
+      (shuffleButton as HTMLElement).click();
     } else {
     }
   }
 
-  toggleRepeat() {
+  toggleRepeat(): void {
     // Try multiple selectors for the repeat button
     const repeatButton =
       document.querySelector('.icon[title="repeat"]') ||
@@ -911,13 +972,26 @@ class AnghamiScraper {
 
     if (repeatButton) {
       console.log("Found repeat button:", repeatButton);
-      repeatButton.click();
+      (repeatButton as HTMLElement).click();
+
+      // Re-extract track data after a short delay to get updated repeat state
+      setTimeout(() => {
+        const newRepeatState = this.getRepeatState();
+        if (this.currentTrack) {
+          this.currentTrack.repeatMode = newRepeatState as
+            | "none"
+            | "one"
+            | "all";
+          this.notifyPiP("trackUpdated", this.currentTrack);
+          console.log("Repeat mode updated to:", newRepeatState);
+        }
+      }, 100);
     } else {
       console.warn("Repeat button not found");
     }
   }
 
-  seekTo(percentage) {
+  seekTo(percentage: number): void {
     // Try multiple selectors for the progress bar
     const progressBar =
       document.querySelector("anghami-buffer .cont") ||
@@ -945,7 +1019,7 @@ class AnghamiScraper {
   }
 
   // Communication with Document PiP
-  notifyPiP(event, data) {
+  notifyPiP(event: string, data: any): void {
     // Try multiple ways to reach the Document PiP
     let pipInstance = null;
 
@@ -991,20 +1065,33 @@ class AnghamiScraper {
 
 // PiP Mode Manager - Prevents conflicts between different PiP implementations
 class PiPModeManager {
+  activeMode: string | null;
+  availableModes: string[];
+  scraper: AnghamiScraper | null;
+  pipInstances: any;
+
   constructor() {
     this.activeMode = null;
     this.availableModes = [];
     this.scraper = null;
+    this.pipInstances = {};
   }
 
-  init(scraper) {
+  init(scraper: AnghamiScraper): void {
     this.scraper = scraper;
 
     // Only Document PiP is supported
     if ("documentPictureInPicture" in window) {
       this.availableModes.push("document");
+      console.log("✅ Document PiP API detected");
     } else {
+      console.warn("⚠️ Document PiP API not available in this browser");
     }
+
+    console.log(
+      "PiP Mode Manager initialized. Available modes:",
+      this.availableModes
+    );
   }
 
   async togglePiP(preferredMode = null) {
@@ -1030,7 +1117,7 @@ class PiPModeManager {
     throw new Error("No PiP mode available");
   }
 
-  async activateMode(mode) {
+  async activateMode(mode: string): Promise<any> {
     // Deactivate any currently active mode
     if (this.activeMode && this.activeMode !== mode) {
       await this.deactivateCurrentMode();
@@ -1057,7 +1144,7 @@ class PiPModeManager {
     }
   }
 
-  async deactivateCurrentMode() {
+  async deactivateCurrentMode(): Promise<void> {
     if (!this.activeMode) return;
 
     try {
@@ -1087,7 +1174,7 @@ class PiPModeManager {
 }
 
 // Handle messages from popup
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
   try {
     if (request.action === "checkDocumentPiPSupport") {
       // Return Document PiP support info only
@@ -1108,21 +1195,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     if (request.action === "toggleDocumentPiP") {
       // Check connection health and attempt recovery if needed
-      if (!window.connectionManager.isHealthy || !window.pipModeManager) {
+      if (!window.connectionManager?.isHealthy || !window.pipModeManager) {
         // Attempt to reinitialize
         window.connectionManager
-          .initializeWithRetry()
-          .then((success) => {
+          ?.initializeWithRetry()
+          .then((success: boolean) => {
             if (success && window.pipModeManager) {
               return window.pipModeManager.togglePiP(request.preferredMode);
             } else {
               throw new Error("Failed to reinitialize extension");
             }
           })
-          .then((result) => {
+          .then((result: any) => {
             sendResponse(result);
           })
-          .catch((error) => {
+          .catch((error: Error) => {
             sendResponse({
               success: false,
               error: error.message,
@@ -1137,13 +1224,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       // Use the mode manager to handle PiP activation
       window.pipModeManager
         .togglePiP(request.preferredMode)
-        .then((result) => {
+        .then((result: any) => {
           sendResponse(result);
         })
-        .catch((error) => {
+        .catch((error: Error) => {
           // If PiP fails, check if it's a connection issue and attempt recovery
-          if (!window.connectionManager.isHealthy) {
-            window.connectionManager.initializeWithRetry();
+          if (!window.connectionManager?.isHealthy) {
+            window.connectionManager?.initializeWithRetry();
           }
 
           sendResponse({
@@ -1174,7 +1261,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     if (request.action === "getLyricsSnapshot") {
       if (window.anghamiScraper) {
-        const lyrics = window.anghamiScraper.getLyrics();
+        const lyrics = window.anghamiScraper.getLyrics?.();
         sendResponse({ success: true, lyrics });
       } else {
         sendResponse({ success: false, error: "Scraper not ready" });
@@ -1185,13 +1272,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     // Handle lyrics observer control
     if (request.action === "startLyricsObserving") {
       if (window.anghamiScraper) {
-        window.anghamiScraper.startLyricsObserving();
+        window.anghamiScraper.startLyricsObserving?.();
         // Immediately send a snapshot so PiP can render without waiting for mutation
         // IMPORTANT: Always send update even if null, so PiP shows "No lyrics" instead of stuck loading
-        const lyrics = window.anghamiScraper.getLyrics();
+        const lyrics = window.anghamiScraper.getLyrics?.();
         // Set initial tracking
-        window.anghamiScraper._lastNotifiedCurrentLine = lyrics?.currentLine;
-        window.anghamiScraper.notifyPiP("lyricsUpdated", lyrics);
+        const currentLineText = lyrics
+          ? lyrics.lines[lyrics.currentLineIndex]?.text
+          : null;
+        window.anghamiScraper._lastNotifiedCurrentLine = currentLineText;
+        window.anghamiScraper.notifyPiP?.("lyricsUpdated", lyrics);
         sendResponse({ success: true });
       } else {
         sendResponse({ success: false, error: "Scraper not initialized" });
@@ -1201,7 +1291,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     if (request.action === "stopLyricsObserving") {
       if (window.anghamiScraper) {
-        window.anghamiScraper.stopLyricsObserving();
+        window.anghamiScraper.stopLyricsObserving?.();
         sendResponse({ success: true });
       } else {
         sendResponse({ success: false, error: "Scraper not initialized" });
@@ -1218,7 +1308,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   } catch (error) {
     sendResponse({
       success: false,
-      error: "Message handler error: " + error.message,
+      error: "Message handler error: " + (error as Error).message,
     });
     return true;
   }
@@ -1226,6 +1316,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 // Auto-recovery and connection management
 class ConnectionManager {
+  retryCount: number;
+  maxRetries: number;
+  retryDelay: number;
+  isHealthy: boolean;
+  healthCheckInterval: number | null;
+  lastSuccessfulConnection: number | null;
+
   constructor() {
     this.retryCount = 0;
     this.maxRetries = 5;
@@ -1235,20 +1332,26 @@ class ConnectionManager {
     this.lastSuccessfulConnection = null;
   }
 
-  async initializeWithRetry() {
+  async initializeWithRetry(): Promise<boolean> {
     try {
+      console.log("🔄 Starting extension initialization...");
+
       // Clear any existing initialization
       this.cleanup();
 
       // Initialize scraper
+      console.log("🔄 Creating AnghamiScraper instance...");
       window.anghamiScraper = new AnghamiScraper();
 
       // Wait for scraper to be ready
       await this.waitForScraper();
+      console.log("✅ Scraper ready");
 
       // Initialize PiP Mode Manager
+      console.log("🔄 Creating PiP Mode Manager...");
       window.pipModeManager = new PiPModeManager();
       await window.pipModeManager.init(window.anghamiScraper);
+      console.log("✅ PiP Mode Manager initialized");
 
       // Initialize all PiP modes
       await initializePiPModes();
@@ -1259,14 +1362,15 @@ class ConnectionManager {
       this.retryCount = 0;
       this.startHealthMonitoring();
 
+      console.log("✅ Extension fully initialized and healthy");
       return true;
     } catch (error) {
       return this.handleConnectionError(error);
     }
   }
 
-  async waitForScraper() {
-    return new Promise((resolve) => {
+  async waitForScraper(): Promise<void> {
+    return new Promise<void>((resolve) => {
       const checkScraper = () => {
         if (window.anghamiScraper && document.querySelector(".track-info")) {
           resolve();
@@ -1278,7 +1382,7 @@ class ConnectionManager {
     });
   }
 
-  async handleConnectionError(error) {
+  async handleConnectionError(_error: any): Promise<boolean> {
     this.isHealthy = false;
 
     if (this.retryCount < this.maxRetries) {
@@ -1378,12 +1482,6 @@ if (document.readyState === "loading") {
   setTimeout(() => window.connectionManager.initializeWithRetry(), 1000);
 }
 
-function initializeScraper() {
-  // This function is now handled by ConnectionManager
-  // Keep for backward compatibility but redirect to connection manager
-  return window.connectionManager.initializeWithRetry();
-}
-
 // Debug: Make scraper available globally for console testing
 window.testScraper = () => {
   if (window.anghamiScraper) {
@@ -1408,26 +1506,39 @@ setTimeout(() => {
 window.anghamiPiPReady = true;
 
 async function initializePiPModes() {
+  console.log("🔄 Initializing PiP modes...");
+
   // Initialize Document PiP if supported
   if (
     "documentPictureInPicture" in window &&
-    typeof AnghamiDocumentPiP !== "undefined"
+    typeof window.AnghamiDocumentPiP !== "undefined"
   ) {
     if (!window.AnghamiDocumentPiP) {
-      window.AnghamiDocumentPiP = new AnghamiDocumentPiP();
-      await window.AnghamiDocumentPiP.init(window.anghamiScraper);
-
-      // Make it accessible in multiple ways
-      window.documentPiPInstance = window.AnghamiDocumentPiP;
-
-      // If we have stored track data, sync it now
-      if (window.latestTrackData) {
-        window.AnghamiDocumentPiP.handleEvent(
-          "trackUpdated",
-          window.latestTrackData
-        );
-      }
+      // AnghamiDocumentPiP should be loaded from document-pip.ts
+      console.error("❌ AnghamiDocumentPiP class not loaded");
+      return false;
     }
+
+    console.log("✅ AnghamiDocumentPiP class found, initializing...");
+    await window.AnghamiDocumentPiP.init(window.anghamiScraper);
+
+    // Make it accessible in multiple ways
+    window.documentPiPInstance = window.AnghamiDocumentPiP;
+
+    // If we have stored track data, sync it now
+    if (window.latestTrackData) {
+      window.AnghamiDocumentPiP.handleEvent(
+        "trackUpdated",
+        window.latestTrackData
+      );
+    }
+
+    console.log("✅ Document PiP initialized successfully");
+  } else {
+    console.warn("⚠️ Document PiP not available:", {
+      apiAvailable: "documentPictureInPicture" in window,
+      classLoaded: typeof window.AnghamiDocumentPiP !== "undefined",
+    });
   }
 
   return true;

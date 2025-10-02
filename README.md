@@ -1,11 +1,19 @@
----
-noteId: "418699c09f4711f0a5c0c78e3d51e79e"
-tags: []
----
-
 # 🎵 Anghami PiP Mini Player Extension
 
-A Chrome extension that creates a **TRUE "Outside Browser" Picture-in-Picture window** for Anghami web using the Document Picture-in-Picture API.
+A Chrome extension that creates a **TRUE "Outside Browser" Picture-in-Picture window** for Anghami web using the Document Picture-in-Picture API. Built with **TypeScript** for enhanced reliability and maintainability.
+
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9.3-blue.svg)](https://www.typescriptlang.org/)
+[![Chrome Extension](https://img.shields.io/badge/Chrome-Extension-green.svg)](https://developer.chrome.com/docs/extensions/)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+## 🌟 **What Makes This Special**
+
+Unlike traditional browser-based PiP solutions, this extension uses Chrome's **Document Picture-in-Picture API** to create a true system-level window that:
+
+- **Works outside the browser** - Can be moved anywhere on your screen or other monitors
+- **Always stays on top** - Remains visible over all applications, not just Chrome
+- **Full HTML interface** - Interactive controls that work natively in the PiP window
+- **Real-time synchronization** - Updates instantly as you interact with Anghami
 
 ## 🖼️ **Features**
 
@@ -85,208 +93,509 @@ A Chrome extension that creates a **TRUE "Outside Browser" Picture-in-Picture wi
 
 ## Installation
 
-### From Source
+### Prerequisites
 
-1. Clone or download this repository
-2. Open Chrome and go to `chrome://extensions/`
-3. Enable "Developer mode" in the top right
-4. Click "Load unpacked" and select the extension folder
-5. Navigate to [Anghami](https://play.anghami.com)
-6. Click the extension icon to toggle the mini-player
+- **Chrome 116+** or **Edge 116+** (Required for Document Picture-in-Picture API)
+- **Anghami account** (Plus subscription recommended for full features)
 
-### Required Files
+### Option 1: From Source (Recommended for Development)
 
-Make sure you have all these files in your extension directory:
+1. **Clone the repository**
+
+   ```bash
+   git clone https://github.com/KarimmYasser/anghami_pip_extension.git
+   cd anghami_pip_extension
+   ```
+
+2. **Install dependencies**
+
+   ```bash
+   npm install
+   ```
+
+3. **Build the extension**
+
+   ```bash
+   npm run build
+   ```
+
+   This will:
+
+   - Compile TypeScript files to JavaScript
+   - Bundle with webpack
+   - Copy all necessary files to the `dist/` folder
+
+4. **Load in Chrome**
+
+   - Open Chrome and navigate to `chrome://extensions/`
+   - Enable "Developer mode" in the top right
+   - Click "Load unpacked"
+   - Select the `dist/` folder from the project directory
+
+5. **Start using**
+   - Navigate to [https://play.anghami.com](https://play.anghami.com)
+   - Click the extension icon
+   - Click "Open PiP" to launch the mini player
+
+### Option 2: Install Pre-built Extension
+
+1. Download the latest release from the [Releases page](https://github.com/KarimmYasser/anghami_pip_extension/releases)
+2. Extract the ZIP file
+3. Follow steps 4-5 from Option 1 above
+
+## 🛠️ Development
+
+### Tech Stack
+
+- **TypeScript 5.9.3** - Type-safe development
+- **Webpack 5** - Module bundling
+- **Chrome Extension Manifest V3** - Latest extension standard
+- **Document Picture-in-Picture API** - System-level PiP windows
+
+### Project Structure
 
 ```
 anghami_pip_extension/
-├── manifest.json           # Extension configuration
-├── content.js             # Main DOM scraping and PiP management
-├── document-pip.js        # Document PiP API implementation
-├── popup.html            # Extension popup interface
-├── popup.js              # Popup functionality
-├── styles.css            # Purple theme and CSS variables
-├── README.md             # This documentation
-└── icons/                # Extension icons
-    ├── icon16.png (16x16)
-    ├── icon32.png (32x32)
-    ├── icon48.png (48x48)
-    ├── icon128.png (128x128)
-    ├── backward.png       # Control icons
-    ├── forward.png
-    ├── like.png
-    ├── liked.png
-    ├── pause.png
-    ├── play.png
-    ├── repeat.png
-    ├── repeat-active.png
-    ├── shuffle.png
-    └── shuffle-active.png
+├── dist/                    # Built extension (generated)
+│   ├── content.js
+│   ├── document-pip.js
+│   ├── popup.js
+│   ├── manifest.json
+│   ├── popup.html
+│   ├── styles.css
+│   └── icons/
+├── src/ (TypeScript source files at root)
+│   ├── content.ts           # Main scraper and PiP manager
+│   ├── document-pip.ts      # Document PiP window implementation
+│   ├── popup.ts             # Extension popup logic
+│   └── types.d.ts           # TypeScript type definitions
+├── manifest.json            # Extension manifest
+├── popup.html               # Popup UI
+├── styles.css               # Styling and theme
+├── icons/                   # Extension icons
+├── webpack.config.js        # Webpack configuration
+├── tsconfig.json           # TypeScript configuration
+├── package.json            # Dependencies and scripts
+├── README.md               # This file
+└── TROUBLESHOOTING.md      # Detailed troubleshooting guide
 ```
+
+### Build Scripts
+
+```bash
+# Development build with source maps
+npm run build
+
+# Watch mode for development
+npm run watch
+
+# Production build (minified)
+npm run webpack
+
+# TypeScript watch mode
+npm run watch:ts
+
+# Clean build artifacts
+npm run clean
+```
+
+### Key Classes
+
+#### `AnghamiScraper` (content.ts)
+
+- Extracts track data from Anghami's DOM
+- Manages MutationObservers for real-time updates
+- Controls playback through DOM manipulation
+- Handles lyrics extraction and synchronization
+
+#### `AnghamiDocumentPiP` (document-pip.ts)
+
+- Creates and manages the Document PiP window
+- Renders interactive HTML interface
+- Handles user interactions in PiP window
+- Syncs state with main Anghami player
+
+#### `PiPModeManager` (content.ts)
+
+- Detects available PiP modes
+- Manages PiP lifecycle
+- Handles fallback strategies
+
+#### `ConnectionManager` (content.ts)
+
+- Health monitoring and auto-recovery
+- Retry logic for failed connections
+- Graceful error handling
+
+### Type Definitions
+
+All types are defined in `types.d.ts`:
+
+- `TrackData` - Song metadata interface
+- `LyricsData` - Lyrics structure
+- `AnghamiScraper` - Scraper interface
+- Window extensions for global objects
+
+### Adding New Features
+
+1. **Add type definitions** in `types.d.ts`
+2. **Implement scraper logic** in `content.ts`
+3. **Update PiP UI** in `document-pip.ts`
+4. **Add event handlers** for new controls
+5. **Build and test**: `npm run build`
+
+## Project File Structure
+
+### Complete Project Layout
+
+```
+anghami_pip_extension/
+├── dist/                      # Build output (generated by npm run build)
+│   ├── manifest.json          # Copied from root
+│   ├── content.js             # Compiled from content.ts
+│   ├── content.js.map         # Source map for content.ts
+│   ├── document-pip.js        # Compiled from document-pip.ts
+│   ├── document-pip.js.map    # Source map for document-pip.ts
+│   ├── popup.js               # Compiled from popup.ts
+│   ├── popup.js.map           # Source map for popup.ts
+│   ├── popup.html             # Copied from root
+│   ├── styles.css             # Copied from root
+│   └── icons/                 # Copied from root
+│       ├── icon16.png
+│       ├── icon32.png
+│       ├── icon48.png
+│       ├── icon128.png
+│       └── ... (other icons)
+│
+├── icons/                     # Extension icons (source)
+│   ├── icon16.png
+│   ├── icon32.png
+│   ├── icon48.png
+│   ├── icon128.png
+│   └── ... (player control icons)
+│
+├── node_modules/              # npm dependencies (generated)
+│
+├── content.ts                 # Main scraper and PiP manager (TypeScript source)
+├── document-pip.ts            # Document PiP window implementation (TypeScript source)
+├── popup.ts                   # Extension popup logic (TypeScript source)
+├── types.d.ts                 # TypeScript type definitions
+│
+├── manifest.json              # Extension manifest (Manifest V3)
+├── popup.html                 # Extension popup UI
+├── styles.css                 # Styling and purple theme
+├── player-wrapper.html        # PiP window template
+│
+├── webpack.config.js          # Webpack bundling configuration
+├── tsconfig.json              # TypeScript compiler configuration
+├── package.json               # npm dependencies and scripts
+├── package-lock.json          # npm dependency lock file
+│
+├── README.md                  # This file
+├── TROUBLESHOOTING.md         # Detailed troubleshooting guide
+└── LICENSE                    # MIT License
+```
+
+### Key Files Explained
+
+#### TypeScript Source Files (Root)
+
+- **`content.ts`** - Main content script with AnghamiScraper, PiPModeManager, ConnectionManager classes
+- **`document-pip.ts`** - Document PiP window creation and management
+- **`popup.ts`** - Extension popup UI logic
+- **`types.d.ts`** - Shared TypeScript interfaces (TrackData, LyricsData, etc.)
+
+#### Static Assets (Root)
+
+- **`manifest.json`** - Chrome extension configuration (Manifest V3)
+- **`popup.html`** - Extension popup interface
+- **`styles.css`** - Purple theme and CSS variables
+- **`player-wrapper.html`** - HTML template for PiP window
+- **`icons/`** - All extension and player control icons
+
+#### Build Configuration
+
+- **`webpack.config.js`** - Bundles TypeScript and copies static assets to dist/
+- **`tsconfig.json`** - TypeScript compiler settings (strict mode, ES2020 target)
+- **`package.json`** - Dependencies and build scripts
+
+#### Generated Files (dist/)
+
+All files in `dist/` are automatically generated by `npm run build`:
+
+- **`.js` files** - Compiled from `.ts` source files
+- **`.js.map` files** - Source maps for debugging
+- **Static assets** - Copied from root (manifest, HTML, CSS, icons)
+
+> **Important**: Load the **`dist/`** folder as an unpacked extension in Chrome, not the root folder!
+
+## 🚀 Quick Start
+
+1. **Build the extension**: `npm run build`
+2. **Load in Chrome**: Load unpacked from `dist/` folder
+3. **Open Anghami**: Navigate to [play.anghami.com](https://play.anghami.com)
+4. **Launch PiP**: Click extension icon → "Open PiP"
+5. **Enjoy**: Control your music from anywhere!
 
 ## Technical Implementation
 
 ### Architecture
 
+- **TypeScript 5.9.3** - Fully typed codebase for reliability
+- **Webpack 5** - Module bundling with source maps
 - **Manifest V3** - Latest Chrome extension standard
-- **Content Script** (`content.js`) - DOM scraping and communication with PiP window
-- **Document PiP** (`document-pip.js`) - Creates system-level PiP window using Chrome's API
-- **Popup Interface** (`popup.html`) - Extension popup for quick access and controls
+- **Document Picture-in-Picture API** - System-level PiP windows
+- **MutationObserver** - Real-time DOM change detection
+- **Chrome Storage API** - State persistence
+
+### Build Pipeline
+
+1. **TypeScript Compilation**: `.ts` → `.js` with type checking
+2. **Webpack Bundling**: Module resolution and optimization
+3. **Asset Copying**: Static files (manifest, HTML, CSS, icons) → `dist/`
+4. **Source Maps**: Generated for debugging
+
+### Communication Flow
+
+```
+Anghami Page (DOM)
+        ↓
+  AnghamiScraper
+  (extracts data)
+        ↓
+  PiPModeManager
+  (manages modes)
+        ↓
+AnghamiDocumentPiP
+(renders UI)
+        ↓
+Document PiP Window
+(user interaction)
+        ↓
+  Event Handlers
+        ↓
+  Anghami Page (DOM)
+  (simulates clicks)
+```
 
 ### DOM Scraping Strategy
 
-The extension analyzes Anghami's DOM structure to extract:
+The extension uses intelligent DOM scraping to extract data:
 
-- Track metadata from `.track-info` sections
-- Progress from `.stream-controls.indicator` positioning
-- Play state from button visibility and classes
-- Control elements for interaction simulation
+- **Track metadata** from `.track-info` sections with fallbacks
+- **Progress** from `.stream-controls.indicator` positioning
+- **Play state** from button visibility and CSS classes
+- **Lyrics** from `.mini-lyrics-holder` with duplicate handling
+- **Control buttons** for interaction simulation
 
-### Key Components
+### Error Handling & Recovery
 
-#### AnghamiScraper Class
+- **Health monitoring**: Periodic checks for component availability
+- **Auto-retry logic**: Exponential backoff for failed connections
+- **Graceful degradation**: Shows error messages instead of crashing
+- **State recovery**: Reinitializes on page navigation
+- **Console logging**: Comprehensive debugging with emoji indicators
 
-- Extracts song information from DOM elements
-- Sets up MutationObservers for real-time updates
-- Provides methods to control playbook via DOM manipulation
-- Handles progress tracking and state management
+### Key Features Implementation
 
-#### AnghamiDocumentPiP Class
+#### Real-time Synchronization
 
-- Creates and manages the Document PiP window
-- Renders interactive HTML interface in system-level window
-- Handles button interactions and real-time data updates
-- Communicates with main page via message passing
+- **MutationObserver**: Watches DOM for changes
+- **Debounced updates**: Prevents excessive re-renders
+- **Smart diffing**: Only updates changed properties
 
-## Browser Support
+#### Lyrics Display
 
-- **Chrome 116+** ✅ **Recommended** - Full Document Picture-in-Picture API support
-- **Chrome 120+** ✅ **Best Experience** - Latest API features and stability
-- **Edge 116+** ✅ Chromium-based with Document PiP support
-- **Brave Browser** ⚠️ Limited support - Document PiP may not work in all versions
-- **Chromium-based browsers** ⚠️ Variable support depending on version
+- **View Transitions API**: Smooth morphing animations
+- **Smart indexing**: Handles duplicate lyrics intelligently
+- **Fallback rendering**: Works without View Transitions
+- **Auto-hide**: Hides when lyrics unavailable
 
-### Feature Support by Browser:
+#### Repeat Button Fix
 
-| Feature                  | Chrome 116+ | Chrome 120+ | Edge 116+ | Brave |
-| ------------------------ | ----------- | ----------- | --------- | ----- |
-| Document PiP             | ✅          | ✅          | ✅        | ⚠️    |
-| Minimum Size Constraints | ✅          | ✅          | ✅        | ⚠️    |
-| Purple Theme             | ✅          | ✅          | ✅        | ✅    |
-| Error Recovery           | ✅          | ✅          | ✅        | ✅    |
-| Immediate UI Feedback    | ✅          | ✅          | ✅        | ✅    |
+- **State-driven UI**: Visual state follows data state
+- **Post-toggle extraction**: Re-extracts state after 100ms
+- **Proper sync**: No more toggle conflicts
 
-## Permissions Used
+#### Connection Management
+
+- **Health checks**: Periodic validation every 10s
+- **Retry mechanism**: Up to 5 retries with exponential backoff
+- **Status reporting**: Reports health to popup
+
+## 📖 Documentation
+
+- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Comprehensive troubleshooting guide
+  - Browser compatibility checks
+  - Console log interpretation
+  - Lyrics loading issues
+  - Repeat button problems
+  - Common error solutions
+
+## 🐛 Troubleshooting
+
+For detailed troubleshooting, see **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)**.
+
+### Quick Fixes
+
+**No PiP mode available**
+
+- Ensure Chrome 116+ or Edge 116+
+- Check console for `✅ Document PiP API detected`
+- Reload extension and refresh Anghami page
+
+**Stuck at "Loading lyrics"**
+
+- Open lyrics on main Anghami page first
+- Check console for `🎵 Lyrics detected`
+- Not all songs have lyrics
+- Requires Anghami Plus subscription
+
+**Repeat button not showing color**
+
+- Fixed in latest version
+- Button updates after 100ms delay
+- Check console for `Repeat mode updated to: ...`
+
+**Extension not loading**
+
+- Run `npm run build` to build the extension
+- Check `dist/` folder contains all files
+- Ensure `manifest.json` exists in `dist/`
+
+### Debug Mode
+
+Open the browser console (F12) on the Anghami page to see detailed logs:
+
+```
+✅ Document PiP class loaded and instantiated
+🔄 Starting extension initialization...
+✅ Scraper ready
+✅ PiP Mode Manager initialized
+🎵 Lyrics detected: {totalLines: 45, ...}
+📝 Lyrics update check: {...}
+```
+
+## 🌐 Browser Support
+
+| Browser        | Version | Document PiP       | Status                 |
+| -------------- | ------- | ------------------ | ---------------------- |
+| **Chrome**     | 116+    | ✅ Full Support    | ✅ **Recommended**     |
+| **Chrome**     | 120+    | ✅ Latest Features | ✅ **Best Experience** |
+| **Edge**       | 116+    | ✅ Full Support    | ✅ Recommended         |
+| **Brave**      | Varies  | ⚠️ Limited         | ⚠️ May not work        |
+| Other Chromium | Varies  | ⚠️ Variable        | ⚠️ Test first          |
+
+### How to Check Your Browser Version
+
+1. Open Chrome/Edge
+2. Go to `chrome://version/` or `edge://version/`
+3. Check the version number (first line)
+4. Ensure it's **116 or higher**
+
+## 🔒 Permissions & Privacy
+
+### Permissions Used
 
 - `scripting` - Inject content scripts into Anghami pages
 - `activeTab` - Access current tab for extension functionality
-- `host_permissions` - Access Anghami domains for DOM manipulation
+- `host_permissions` - Access Anghami domains
   - `https://play.anghami.com/*`
   - `https://*.anghami.com/*`
 
-### Security & Privacy:
+### Privacy Commitment
 
-- **No data collection** - Extension works entirely locally
-- **No network requests** - All functionality uses existing Anghami APIs
-- **No special permissions** - Document Picture-in-Picture API requires no additional permissions
-- **Clean console output** - No verbose logging in production
+- ✅ **No data collection** - Extension works entirely locally
+- ✅ **No external requests** - Uses only Anghami's existing APIs
+- ✅ **No tracking** - No analytics or telemetry
+- ✅ **No storage of personal data** - Only stores UI state
+- ✅ **Open source** - Code is publicly auditable
 
-## Limitations
+The Document Picture-in-Picture API requires no additional permissions beyond standard content script access.
+
+## ⚠️ Limitations
 
 ### Technical Limitations
 
-- Only works on Anghami web player (play.anghami.com)
-- Requires JavaScript to be enabled
-- Some features depend on Anghami's current DOM structure
-- No offline functionality
+- ✋ Only works on Anghami web player (`play.anghami.com`)
+- ✋ Requires JavaScript to be enabled
+- ✋ Dependent on Anghami's DOM structure (may break with UI updates)
+- ✋ No offline functionality
+- ✋ Requires Chrome 116+ or Edge 116+
 
 ### Anghami Subscription Plan Limitations
 
-⚠️ **Important**: Some features require an **Anghami Plus subscription** and will not work for free plan users:
+Some features require an **Anghami Plus subscription**:
 
-| Feature                   | Free Plan | Anghami Plus |
-| ------------------------- | --------- | ------------ |
-| Basic Playback Controls   | ✅ Yes    | ✅ Yes       |
-| Track Information Display | ✅ Yes    | ✅ Yes       |
-| Progress Bar              | ✅ Yes    | ✅ Yes       |
-| Play/Pause/Next/Previous  | ✅ Yes    | ✅ Yes       |
-| **Lyrics Display**        | ❌ No     | ✅ Yes       |
-| Shuffle/Repeat            | ❌ No     | ✅ Yes       |
-| Like/Unlike Tracks        | ✅ Yes    | ✅ Yes       |
+| Feature                  | Free Plan  | Anghami Plus |
+| ------------------------ | ---------- | ------------ |
+| Basic Playback Controls  | ✅ Yes     | ✅ Yes       |
+| Track Information        | ✅ Yes     | ✅ Yes       |
+| Progress Bar             | ✅ Yes     | ✅ Yes       |
+| Play/Pause/Next/Previous | ✅ Yes     | ✅ Yes       |
+| **Lyrics Display**       | ❌ No      | ✅ Yes       |
+| Shuffle/Repeat           | ✅ Limited | ✅ Yes       |
+| Like/Unlike Tracks       | ✅ Yes     | ✅ Yes       |
 
-**Note**: Lyrics are only available to Anghami Plus subscribers. If you're on a free plan, the lyrics button will be present in the PiP window but no lyrics will be displayed. The extension will show a message indicating that lyrics are not available.
+**Note**: The lyrics button will be visible to all users, but lyrics will only display for Anghami Plus subscribers.
 
-\*Some playback features may have limitations on the free plan as determined by Anghami's service restrictions.
+## 🤝 Contributing
 
-## Development
+Contributions are welcome! Here's how you can help:
 
-### Project Structure
+1. **Fork** the repository
+2. **Create** a feature branch: `git checkout -b feature/amazing-feature`
+3. **Commit** your changes: `git commit -m 'Add amazing feature'`
+4. **Push** to the branch: `git push origin feature/amazing-feature`
+5. **Open** a Pull Request
 
-```javascript
-// content.js - Main DOM interaction logic
-class AnghamiScraper {
-  // Extracts track data and controls playbook
-}
+### Development Guidelines
 
-// document-pip.js - Document PiP management
-class AnghamiDocumentPiP {
-  // Creates and manages Document PiP window
-}
-```
+- Follow TypeScript best practices
+- Add types for new interfaces
+- Include console logs with emoji indicators
+- Test on Chrome 116+ before submitting
+- Update documentation for new features
 
-### Extending Functionality
+## 📝 Changelog
 
-To add new features:
+### v1.1.0 (Latest)
 
-1. Add DOM selectors to `AnghamiScraper`
-2. Implement control methods in the scraper class
-3. Add UI elements to `AnghamiDocumentPiP.createPiPWindow()`
-4. Update HTML template in `document-pip.js`
+- ✅ Migrated to TypeScript for type safety
+- ✅ Added comprehensive error handling
+- ✅ Fixed repeat button not showing active state
+- ✅ Fixed lyrics loading issues (proper interface usage)
+- ✅ Added connection health monitoring
+- ✅ Improved console logging with emojis
+- ✅ Added TROUBLESHOOTING.md guide
+- ✅ Enhanced build pipeline with webpack
 
-## Troubleshooting
+### v1.0.0
 
-### Mini-player not appearing
+- 🎉 Initial release
+- ✨ Document Picture-in-Picture support
+- 🎨 Purple theme
+- 🎵 Lyrics display
+- ⌨️ Keyboard shortcuts
 
-- ✅ Ensure you're on play.anghami.com
-- ✅ Check that the extension is enabled in chrome://extensions/
-- ✅ Verify Document PiP API is enabled
-- ✅ Refresh the page and try again
-- ✅ Check popup shows "Ready" status
+## 📄 License
 
-### Controls not working
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-- ✅ Verify Anghami player is fully loaded
-- ✅ Check that a song is selected/playing
-- ✅ Try clicking shuffle button in main player first
-- ✅ Ensure no other extensions are interfering with DOM
+## 🙏 Acknowledgments
 
-### Progress bar not updating
+- **Anghami** - For the amazing music streaming service
+- **Chrome DevRel** - For the Document Picture-in-Picture API
+- **TypeScript Team** - For the excellent type system
 
-- ✅ Check that a song is currently playing
-- ✅ Verify Anghami's progress indicator is visible
-- ✅ Extension auto-recovers from connection issues
-- ✅ Try refreshing if issues persist
+## ⚖️ Disclaimer
 
-### Window too small or sizing issues
+This extension is an independent project and is not affiliated with, endorsed by, or officially connected with Anghami Inc. in any way. Anghami and the Anghami logo are trademarks of Anghami Inc.
 
-- ✅ Extension enforces minimum size of 280x100px automatically
-- ✅ Drag window edges to resize
-- ✅ Window prevents becoming unusably small
-
-### Purple theme not showing
-
-- ✅ All components use consistent purple theme (#8d00f2)
-- ✅ Check popup matches Document PiP colors
-- ✅ Refresh extension if colors seem inconsistent
-
-## License
-
-This project is for educational purposes. Anghami is a trademark of Anghami Inc.
-
-## Contributing
-
-Feel free to submit issues and enhancement requests. This extension demonstrates DOM scraping techniques for creating enhanced user interfaces.
+This extension is provided "as is" for educational and personal use. The extension works by analyzing Anghami's DOM structure and may break if Anghami updates their interface.
 
 ---
 
-**Note**: This extension works by analyzing Anghami's DOM structure. If Anghami updates their interface, the extension may need updates to maintain compatibility.
+**Made with ❤️ by [KarimmYasser](https://github.com/KarimmYasser)**
+
+**Star ⭐ this repo if you find it useful!**

@@ -36,6 +36,16 @@ build/
 *.pem
 *.zip
 
+# TypeScript
+*.tsbuildinfo
+*.js.map
+
+# Compiled JavaScript (keep source .ts files, ignore compiled .js)
+# Uncomment these if you want to commit compiled files:
+# content.js
+# document-pip.js
+# popup.js
+
 # Logs
 logs/
 *.log

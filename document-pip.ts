@@ -1,12 +1,34 @@
 // Document Picture-in-Picture API implementation for Anghami
 // This creates a true "outside browser" PiP window with full HTML controls
 
-class AnghamiDocumentPiP {
-  constructor(options = {}) {
+import type { TrackData, LyricsData, AnghamiScraper } from "./types";
+
+export class AnghamiDocumentPiP {
+  pipWindow: Window | null;
+  isActive: boolean;
+  trackData: TrackData | null;
+  scraper: AnghamiScraper | null;
+  minWidth: number;
+  minHeight: number;
+  windowConfig: {
+    width: number;
+    height: number;
+    disallowReturnToOpener: boolean;
+  };
+  timeUpdateTimer: number | null;
+  lyricsPollTimer: number | null;
+  lastLyricsIndex: number;
+  _lastCurrentLineText: string | null;
+
+  constructor(options: { width?: number; height?: number } = {}) {
     this.pipWindow = null;
     this.isActive = false;
     this.trackData = null;
     this.scraper = null;
+    this.timeUpdateTimer = null;
+    this.lyricsPollTimer = null;
+    this.lastLyricsIndex = 0;
+    this._lastCurrentLineText = null;
 
     // PiP window dimensions (configurable) with minimum constraints
     this.minWidth = 220; // Minimum width to show all controls properly
@@ -19,13 +41,17 @@ class AnghamiDocumentPiP {
     };
   }
 
-  async init(scraper) {
+  async init(scraper: AnghamiScraper): Promise<AnghamiDocumentPiP> {
     this.scraper = scraper;
     return this; // allow chaining
   }
 
   // Calculate remaining time based on current time, duration, and progress
-  calculateRemainingTime(currentTime, duration, progress) {
+  calculateRemainingTime(
+    currentTime: string,
+    duration: string,
+    progress: number
+  ): string {
     try {
       // If we have progress percentage and duration, calculate remaining
       if (progress && duration && duration !== "0:00") {
@@ -56,7 +82,7 @@ class AnghamiDocumentPiP {
   }
 
   // Helper: Convert MM:SS or HH:MM:SS to seconds
-  timeToSeconds(timeString) {
+  timeToSeconds(timeString: string): number {
     if (!timeString) return 0;
     const parts = timeString.split(":").map(Number);
     if (parts.length === 2) {
@@ -68,7 +94,7 @@ class AnghamiDocumentPiP {
   }
 
   // Helper: Convert seconds to MM:SS or HH:MM:SS
-  secondsToTime(totalSeconds) {
+  secondsToTime(totalSeconds: number): string {
     const hours = Math.floor(totalSeconds / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);
     const seconds = Math.floor(totalSeconds % 60);
@@ -83,16 +109,18 @@ class AnghamiDocumentPiP {
   }
 
   // Set up frequent time and progress updates
-  setupTimeUpdates() {
+  setupTimeUpdates(): void {
     // Clear any existing timer
-    if (this.timeUpdateTimer) {
+    if (this.timeUpdateTimer !== null) {
       clearInterval(this.timeUpdateTimer);
     }
 
     // Update time and progress every second for smooth updates
     this.timeUpdateTimer = setInterval(() => {
       if (!this.pipWindow || this.pipWindow.closed) {
-        clearInterval(this.timeUpdateTimer);
+        if (this.timeUpdateTimer !== null) {
+          clearInterval(this.timeUpdateTimer);
+        }
         this.timeUpdateTimer = null;
         return;
       }
@@ -156,6 +184,10 @@ class AnghamiDocumentPiP {
   async createPiPWindow() {
     try {
       // Request Document Picture-in-Picture window
+      // Request a new Document PiP window
+      if (!window.documentPictureInPicture) {
+        throw new Error("Document Picture-in-Picture not supported");
+      }
       this.pipWindow = await window.documentPictureInPicture.requestWindow(
         this.windowConfig
       );
@@ -218,8 +250,8 @@ class AnghamiDocumentPiP {
     }
   }
 
-  setupPiPContent() {
-    const doc = this.pipWindow.document;
+  setupPiPContent(): void {
+    const doc = this.pipWindow!.document;
 
     // Set title
     doc.title = "Anghami Mini Player";
@@ -288,8 +320,8 @@ class AnghamiDocumentPiP {
     `;
   }
 
-  setupPiPStyles() {
-    const doc = this.pipWindow.document;
+  setupPiPStyles(): void {
+    const doc = this.pipWindow!.document;
 
     // Get CSS variables from the main document to ensure consistency
     const mainDoc = document.documentElement;
@@ -433,7 +465,7 @@ class AnghamiDocumentPiP {
       }
       
       .track-title {
-        font-size: clamp(11px, 2.5vw, 15px);
+        font-size: clamp(15px, 2.8vw, 17px);
         font-weight: 600;
         margin-bottom: 2px;
         overflow: hidden;
@@ -443,7 +475,7 @@ class AnghamiDocumentPiP {
       }
       
       .track-artist {
-        font-size: clamp(9px, 2vw, 12px);
+        font-size: clamp(10px, 2.2vw, 12px);
         color: var(--anghami-text-tertiary);
         overflow: hidden;
         text-overflow: ellipsis;
@@ -452,7 +484,7 @@ class AnghamiDocumentPiP {
       }
       
       .progress-bar {
-        height: clamp(2px, 0.5vh, 4px);
+        height: clamp(4px, 0.5vh, 6px);
         background: var(--anghami-border-secondary);
         border-radius: 2px;
         position: relative;
@@ -471,7 +503,7 @@ class AnghamiDocumentPiP {
       .time-info {
         display: flex;
         justify-content: space-between;
-        font-size: clamp(8px, 1.5vw, 10px);
+        font-size: clamp(10px, 2vw, 12px);
         color: var(--anghami-text-muted);
         font-weight: 500;
       }
@@ -636,7 +668,7 @@ class AnghamiDocumentPiP {
       }
       
       .lyrics-line {
-        font-size: clamp(12px, 2.5vw, 15px);
+        font-size: clamp(14px, 3vw, 20px);
         line-height: 1.4;
         color: rgba(255, 255, 255, 0.4);
         margin: clamp(3px, 0.8vh, 6px) 0;
@@ -671,8 +703,8 @@ class AnghamiDocumentPiP {
     doc.head.appendChild(style);
   }
 
-  setupPiPEvents() {
-    const doc = this.pipWindow.document;
+  setupPiPEvents(): void {
+    const doc = this.pipWindow!.document;
 
     // Check for all expected elements
     const elements = {
@@ -686,7 +718,7 @@ class AnghamiDocumentPiP {
 
     // Log missing elements
     const missing = Object.entries(elements)
-      .filter(([key, element]) => !element)
+      .filter(([_key, element]) => !element)
       .map(([key]) => key);
     if (missing.length > 0) {
     }
@@ -755,8 +787,8 @@ class AnghamiDocumentPiP {
             console.log("Repeat button clicked, calling toggleRepeat");
             this.scraper.toggleRepeat();
 
-            // Toggle active class for visual feedback
-            repeatBtn.classList.toggle("active");
+            // Don't toggle class here - let the state update drive it
+            // The scraper will extract the new repeat mode and updatePiPContent will be called
           } else {
             console.error("Scraper or toggleRepeat not available");
           }
@@ -844,7 +876,7 @@ class AnghamiDocumentPiP {
     }
 
     // Handle window close
-    this.pipWindow.addEventListener("unload", () => {
+    this.pipWindow!.addEventListener("unload", () => {
       this.cleanup();
     });
 
@@ -878,7 +910,7 @@ class AnghamiDocumentPiP {
     });
   }
 
-  updateTrackInfo(trackData) {
+  updateTrackInfo(trackData: TrackData): void {
     // Check if this is a new track (reset lyrics index for duplicates handling)
     if (
       this.trackData &&
@@ -898,12 +930,12 @@ class AnghamiDocumentPiP {
     }
   }
 
-  showLoadingState() {
+  showLoadingState(): void {
     if (!this.pipWindow) return;
 
     const doc = this.pipWindow.document;
-    doc.getElementById("trackTitle").textContent = "Loading...";
-    doc.getElementById("trackArtist").textContent = "Connecting to Anghami";
+    doc.getElementById("trackTitle")!.textContent = "Loading...";
+    doc.getElementById("trackArtist")!.textContent = "Connecting to Anghami";
 
     // Reset progress
     const progressFill = doc.getElementById("progressFill");
@@ -912,7 +944,7 @@ class AnghamiDocumentPiP {
     }
   }
 
-  updatePiPContent() {
+  updatePiPContent(): void {
     if (!this.pipWindow) {
       return;
     }
@@ -925,27 +957,31 @@ class AnghamiDocumentPiP {
     }
 
     // Update track info with fallbacks
-    doc.getElementById("trackTitle").textContent =
+    doc.getElementById("trackTitle")!.textContent =
       this.trackData.title || "Unknown Track";
-    doc.getElementById("trackArtist").textContent =
+    doc.getElementById("trackArtist")!.textContent =
       this.trackData.artist || "Unknown Artist";
-    doc.getElementById("currentTime").textContent =
+    doc.getElementById("currentTime")!.textContent =
       this.trackData.currentTime || "0:00";
 
     // Display remaining time - use directly from scraped data
     const remainingTime =
       this.trackData.remainingTime || this.trackData.duration || "0:00";
-    doc.getElementById("duration").textContent = remainingTime;
+    doc.getElementById("duration")!.textContent = remainingTime;
 
     // Update cover art
     const coverElement = doc.getElementById("trackCover");
-    if (this.trackData.coverArt) {
-      coverElement.style.backgroundImage = `url(${this.trackData.coverArt})`;
-      coverElement.innerHTML = "";
-    } else {
-      coverElement.style.backgroundImage = "";
-      const musicIconUrl = chrome.runtime.getURL("icons/music.png");
-      coverElement.innerHTML = `<div class="cover-placeholder"><img src="${musicIconUrl}" alt="Music" class="cover-placeholder-img"></div>`;
+    if (coverElement) {
+      if (this.trackData.coverArt) {
+        (
+          coverElement as HTMLElement
+        ).style.backgroundImage = `url(${this.trackData.coverArt})`;
+        coverElement.innerHTML = "";
+      } else {
+        (coverElement as HTMLElement).style.backgroundImage = "";
+        const musicIconUrl = chrome.runtime.getURL("icons/music.png");
+        coverElement.innerHTML = `<div class="cover-placeholder"><img src="${musicIconUrl}" alt="Music" class="cover-placeholder-img"></div>`;
+      }
     }
 
     // Update progress
@@ -988,7 +1024,7 @@ class AnghamiDocumentPiP {
     // Log successful update
   }
 
-  toggleLyricsDisplay() {
+  toggleLyricsDisplay(): void {
     if (!this.pipWindow) return;
 
     const doc = this.pipWindow.document;
@@ -1008,7 +1044,7 @@ class AnghamiDocumentPiP {
 
       // Stop observing via direct scraper access
       if (window.anghamiScraper) {
-        window.anghamiScraper.stopLyricsObserving();
+        window.anghamiScraper.stopLyricsObserving?.();
       }
 
       if (this.lyricsPollTimer) {
@@ -1020,24 +1056,34 @@ class AnghamiDocumentPiP {
       lyricsBtn.classList.add("active");
       lyricsScroll.innerHTML = `<div class=\"lyrics-line\">Loading lyrics...</div>`;
 
+      console.log("🎵 Lyrics button clicked - requesting lyrics...");
+
       // Access scraper directly from main window instead of chrome.runtime messaging
       if (window.anghamiScraper) {
-        window.anghamiScraper.startLyricsObserving();
+        console.log("✅ Scraper available, starting observation...");
+        window.anghamiScraper.startLyricsObserving?.();
 
         // Get initial lyrics snapshot
-        const lyrics = window.anghamiScraper.getLyrics();
+        const lyrics = window.anghamiScraper.getLyrics?.();
+        console.log("📊 Initial lyrics snapshot:", {
+          hasLyrics: !!lyrics,
+          linesCount: lyrics?.lines?.length || 0,
+          currentIndex: lyrics?.currentLineIndex ?? -1,
+        });
+
         this.updateLyricsDisplay(lyrics);
 
         // Also trigger the notification manually
-        window.anghamiScraper.notifyPiP("lyricsUpdated", lyrics);
+        window.anghamiScraper.notifyPiP?.("lyricsUpdated", lyrics);
       } else {
+        console.error("❌ Scraper not available!");
         lyricsScroll.innerHTML = `<div class=\"lyrics-line\">Error: Scraper not available</div>`;
       }
 
       // Set up polling as fallback
       const snapshot = () => {
         if (window.anghamiScraper) {
-          const lyrics = window.anghamiScraper.getLyrics();
+          const lyrics = window.anghamiScraper.getLyrics?.();
           this.updateLyricsDisplay(lyrics);
         }
       };
@@ -1050,11 +1096,11 @@ class AnghamiDocumentPiP {
     }
   }
 
-  getCurrentLyrics() {
+  getCurrentLyrics(): LyricsData | null {
     return null;
   }
 
-  async toggle() {
+  async toggle(): Promise<boolean> {
     if (this.isActive) {
       this.close();
       return false;
@@ -1063,16 +1109,16 @@ class AnghamiDocumentPiP {
     }
   }
 
-  close() {
+  close(): void {
     if (this.pipWindow) {
       this.pipWindow.close();
     }
     this.cleanup();
   }
 
-  cleanup() {
+  cleanup(): void {
     // Clear time update timer
-    if (this.timeUpdateTimer) {
+    if (this.timeUpdateTimer !== null) {
       clearInterval(this.timeUpdateTimer);
       this.timeUpdateTimer = null;
     }
@@ -1081,7 +1127,7 @@ class AnghamiDocumentPiP {
     this.pipWindow = null;
   }
 
-  updateLyricsDisplay(lyrics) {
+  updateLyricsDisplay(lyrics: any): void {
     try {
       if (!this.pipWindow) {
         return;
@@ -1107,78 +1153,30 @@ class AnghamiDocumentPiP {
         return;
       }
 
-      // Find the current line index, handling duplicates intelligently
-      let currentIndex = -1;
+      // Use the currentLineIndex from the lyrics data
+      let currentIndex = lyrics.currentLineIndex ?? 0;
 
-      if (lyrics.currentLine) {
-        // Store the last known index to handle duplicates better
-        if (!this.lastLyricsIndex) {
-          this.lastLyricsIndex = 0;
-        }
-        if (!this._lastCurrentLineText) {
-          this._lastCurrentLineText = null;
-        }
-
-        // First, try exact match starting from last position (for duplicates)
-        for (let i = this.lastLyricsIndex; i < lyrics.lines.length; i++) {
-          if (lyrics.lines[i].trim() === lyrics.currentLine.trim()) {
-            currentIndex = i;
-            break;
-          }
-        }
-
-        // If not found forward, search backward from last position
-        if (currentIndex === -1) {
-          for (let i = this.lastLyricsIndex - 1; i >= 0; i--) {
-            if (lyrics.lines[i].trim() === lyrics.currentLine.trim()) {
-              currentIndex = i;
-              break;
-            }
-          }
-        }
-
-        // If still not found, try fuzzy match (contains)
-        if (currentIndex === -1) {
-          currentIndex = lyrics.lines.findIndex((line, idx) => {
-            // Prioritize lines near the last known position
-            const distance = Math.abs(idx - this.lastLyricsIndex);
-            const matches =
-              line.includes(lyrics.currentLine) ||
-              lyrics.currentLine.includes(line);
-            return matches && distance < lyrics.lines.length / 2;
-          });
-        }
-
-        // Final fallback: any match
-        if (currentIndex === -1) {
-          currentIndex = lyrics.lines.findIndex(
-            (line) =>
-              line.includes(lyrics.currentLine) ||
-              lyrics.currentLine.includes(line)
-          );
-        }
+      // Ensure the index is valid
+      if (currentIndex < 0 || currentIndex >= lyrics.lines.length) {
+        currentIndex = 0;
       }
 
-      // If no current line found, use last known index or default to 0
-      if (currentIndex === -1) {
-        currentIndex = this.lastLyricsIndex || 0;
-      }
-
-      // Get current and next lines only (no previous line)
-      const currentLine = lyrics.lines[currentIndex];
+      // Get current and next lines using the LyricsLine interface
+      const currentLine = lyrics.lines[currentIndex]?.text || "";
       const nextLine =
         currentIndex < lyrics.lines.length - 1
-          ? lyrics.lines[currentIndex + 1]
+          ? lyrics.lines[currentIndex + 1]?.text
           : null;
 
       // Check if the ACTUAL current line text changed (not just index)
       const currentLineChanged = this._lastCurrentLineText !== currentLine;
       const indexChanged = this.lastLyricsIndex !== currentIndex;
-      const previousIndex = this.lastLyricsIndex;
 
       console.log("📝 Lyrics update check:", {
         currentLineChanged,
         indexChanged,
+        currentIndex,
+        totalLines: lyrics.lines.length,
         existingCount: lyricsScroll.querySelectorAll(".lyrics-line").length,
         currentLine: currentLine?.substring(0, 30),
         nextLine: nextLine?.substring(0, 30),
@@ -1200,11 +1198,6 @@ class AnghamiDocumentPiP {
         // Check if View Transitions API is supported
         if (doc.startViewTransition) {
           console.log("🎬 Starting View Transition");
-
-          // Helper to create stable ID from content
-          const getLineId = (text) => {
-            return "line-" + text.replace(/[^a-z0-9]/gi, "").substring(0, 20);
-          };
 
           // Start a view transition
           const transition = doc.startViewTransition(() => {
@@ -1228,8 +1221,8 @@ class AnghamiDocumentPiP {
             // view-transition-name stays as slot-1
 
             console.log("✅ DOM updated in place - slots morphing:", {
-              slot0: oldCurrent.style.viewTransitionName,
-              slot1: oldNext.style.viewTransitionName,
+              slot0: (oldCurrent as HTMLElement).style.viewTransitionName,
+              slot1: (oldNext as HTMLElement).style.viewTransitionName,
             });
           });
 
@@ -1243,8 +1236,8 @@ class AnghamiDocumentPiP {
             });
         } else {
           // Fallback for browsers without View Transitions API
-          const oldCurrent = existingLines[0];
-          const oldNext = existingLines[1];
+          const oldCurrent = existingLines[0] as HTMLElement;
+          const oldNext = existingLines[1] as HTMLElement;
 
           oldCurrent.style.transition = "all 0.3s ease";
           oldCurrent.textContent = currentLine;
@@ -1261,7 +1254,12 @@ class AnghamiDocumentPiP {
     }
   }
 
-  renderLyricsLines(doc, lyricsScroll, currentLine, nextLine) {
+  renderLyricsLines(
+    doc: Document,
+    lyricsScroll: HTMLElement,
+    currentLine: string,
+    nextLine: string | null
+  ): void {
     // Build the 2-line display (used for initial render)
     lyricsScroll.innerHTML = "";
 
@@ -1280,7 +1278,7 @@ class AnghamiDocumentPiP {
     lyricsScroll.appendChild(nextEl);
   }
 
-  handleEvent(event, data) {
+  handleEvent(event: string, data: any): void {
     switch (event) {
       case "trackUpdated":
         this.updateTrackInfo(data);
@@ -1298,8 +1296,6 @@ class AnghamiDocumentPiP {
       case "playStateUpdated":
         if (this.trackData) {
           this.trackData.isPlaying = data.isPlaying;
-        } else {
-          this.trackData = { isPlaying: data.isPlaying };
         }
         this.updatePiPContent();
         break;
@@ -1312,5 +1308,7 @@ class AnghamiDocumentPiP {
   }
 }
 
-// Document PiP class is available for initialization by PiPModeManager
-// No auto-initialization to prevent conflicts
+// Instantiate and make available globally
+window.AnghamiDocumentPiP = new AnghamiDocumentPiP();
+
+console.log("✅ Document PiP class loaded and instantiated");

@@ -37,9 +37,9 @@ document.addEventListener("DOMContentLoaded", function () {
       }
 
       // Send message to content script for PiP (mode manager will choose best)
-      let response;
+      let response: any;
       try {
-        response = await chrome.tabs.sendMessage(tab.id, {
+        response = await chrome.tabs.sendMessage(tab.id!, {
           action: "toggleDocumentPiP",
           // Optional: specify preferred mode - could be "document", "native", or "floating"
           // preferredMode: "document"
@@ -62,19 +62,21 @@ document.addEventListener("DOMContentLoaded", function () {
             return;
           }
 
-          response = await chrome.tabs.sendMessage(tab.id, {
+          response = await chrome.tabs.sendMessage(tab.id!, {
             action: "toggleDocumentPiP",
           });
         } catch (retryError) {
-          console.error("Retry failed:", retryError);
-          
+          const error = retryError as Error;
+          console.error("Retry failed:", error);
+
           // Check if it's an extension context error
-          if (retryError.message?.includes("Extension context invalidated")) {
+          if (error.message?.includes("Extension context invalidated")) {
             statusEl.textContent = "Extension reloaded - please refresh page";
-          } else if (retryError.message?.includes("Receiving end does not exist")) {
+          } else if (error.message?.includes("Receiving end does not exist")) {
             statusEl.textContent = "Content script not ready - refresh page";
           } else {
-            statusEl.textContent = "Connection failed - refresh the Anghami page";
+            statusEl.textContent =
+              "Connection failed - refresh the Anghami page";
           }
           statusEl.style.color = "#ff5722";
           return;
@@ -128,9 +130,9 @@ document.addEventListener("DOMContentLoaded", function () {
     ) {
       // Check PiP support and available modes
       chrome.tabs.sendMessage(
-        currentTab.id,
+        currentTab.id!,
         { action: "checkDocumentPiPSupport" },
-        (response) => {
+        (response: any) => {
           if (chrome.runtime.lastError) {
             statusEl.textContent = "Extension loading...";
             statusEl.style.color = "#ff9800";
@@ -138,10 +140,10 @@ document.addEventListener("DOMContentLoaded", function () {
               chrome.tabs.query(
                 { active: true, currentWindow: true },
                 (retryTabs) => {
-                  if (retryTabs[0]?.url.includes("anghami.com")) {
+                  if (retryTabs[0]?.url?.includes("anghami.com")) {
                     statusEl.textContent = "Ready on Anghami";
                     statusEl.style.color = "#4caf50";
-                    documentPipBtn.disabled = false;
+                    (documentPipBtn as HTMLButtonElement).disabled = false;
                   }
                 }
               );
@@ -171,27 +173,27 @@ document.addEventListener("DOMContentLoaded", function () {
 
             statusEl.textContent = statusMessage;
             statusEl.style.color = "#4caf50";
-            documentPipBtn.disabled = false;
-            documentPipBtn.style.opacity = "1";
+            (documentPipBtn as HTMLButtonElement).disabled = false;
+            (documentPipBtn as HTMLElement).style.opacity = "1";
           } else {
             statusEl.textContent = "PiP not available";
             statusEl.style.color = "#ff9800";
-            documentPipBtn.disabled = true;
-            documentPipBtn.style.opacity = "0.5";
+            (documentPipBtn as HTMLButtonElement).disabled = true;
+            (documentPipBtn as HTMLElement).style.opacity = "0.5";
           }
         }
       );
     } else {
       statusEl.textContent = "Navigate to Anghami to use";
       statusEl.style.color = "#ff9800";
-      documentPipBtn.disabled = true;
-      documentPipBtn.style.opacity = "0.5";
+      (documentPipBtn as HTMLButtonElement).disabled = true;
+      (documentPipBtn as HTMLElement).style.opacity = "0.5";
     }
   });
 });
 
 // Listen for tab updates
-chrome.tabs?.onUpdated?.addListener((tabId, changeInfo, tab) => {
+chrome.tabs?.onUpdated?.addListener((_tabId, changeInfo, tab) => {
   if (changeInfo.status === "complete" && tab.active) {
     // Update popup status if it's open
     const statusEl = document.getElementById("status");
@@ -201,13 +203,13 @@ chrome.tabs?.onUpdated?.addListener((tabId, changeInfo, tab) => {
       if (tab && tab.url && tab.url.includes("anghami.com")) {
         statusEl.textContent = "Ready on Anghami";
         statusEl.style.color = "#4caf50";
-        documentPipBtn.disabled = false;
-        documentPipBtn.style.opacity = "1";
+        (documentPipBtn as HTMLButtonElement).disabled = false;
+        (documentPipBtn as HTMLElement).style.opacity = "1";
       } else {
         statusEl.textContent = "Navigate to Anghami to use";
         statusEl.style.color = "#ff9800";
-        documentPipBtn.disabled = true;
-        documentPipBtn.style.opacity = "0.5";
+        (documentPipBtn as HTMLButtonElement).disabled = true;
+        (documentPipBtn as HTMLElement).style.opacity = "0.5";
       }
     }
   }
@@ -226,23 +228,25 @@ async function checkConnectionStatus() {
     }
 
     // Request connection status from content script
-    const response = await chrome.tabs.sendMessage(tab.id, {
+    const response = (await chrome.tabs.sendMessage(tab.id!, {
       action: "getConnectionStatus",
-    });
+    })) as any;
 
     if (response && response.success && response.status) {
       const status = response.status;
       const statusEl = document.getElementById("status");
 
-      if (status.isHealthy) {
-        statusEl.textContent = "Extension ready";
-        statusEl.style.color = "#4caf50";
-      } else if (status.retryCount > 0) {
-        statusEl.textContent = `Reconnecting... (attempt ${status.retryCount})`;
-        statusEl.style.color = "#ff9800";
-      } else {
-        statusEl.textContent = "Extension initializing...";
-        statusEl.style.color = "#2196f3";
+      if (statusEl) {
+        if (status.isHealthy) {
+          statusEl.textContent = "Extension ready";
+          statusEl.style.color = "#4caf50";
+        } else if (status.retryCount > 0) {
+          statusEl.textContent = `Reconnecting... (attempt ${status.retryCount})`;
+          statusEl.style.color = "#ff9800";
+        } else {
+          statusEl.textContent = "Extension initializing...";
+          statusEl.style.color = "#2196f3";
+        }
       }
     }
   } catch (error) {
