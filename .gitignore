@@ -1,0 +1,80 @@
+# Chrome Extension Development
+
+# OS Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# Editor Files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# Node.js (if using build tools)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# Build Output
+dist/
+build/
+*.crx
+*.pem
+*.zip
+
+# Logs
+logs/
+*.log
+
+# Environment Variables
+.env
+.env.local
+.env.*.local
+
+# Testing
+coverage/
+.nyc_output/
+
+# Temporary Files
+*.tmp
+*.temp
+temp/
+tmp/
+
+# Chrome Extension Specific
+# Uncomment if you're packaging the extension
+# *.crx
+# *.pem
+
+# Private Keys (NEVER commit these!)
+*.pem
+key.pem
+private-key.pem
+
+# Backup Files
+*.bak
+*.backup
+*~
+
+# System Files
+*.pid
+*.seed
+*.pid.lock
+
+# Optional: Exclude specific development files
+# SETUP.md  # Uncomment if you don't want to share setup docs
+# notes.txt # Uncomment to ignore personal notes
