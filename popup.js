@@ -54,12 +54,28 @@ document.addEventListener("DOMContentLoaded", function () {
 
           await new Promise((resolve) => setTimeout(resolve, 1000));
 
+          // Check if extension context is still valid
+          if (!chrome.runtime?.id) {
+            console.error("Extension context invalidated");
+            statusEl.textContent = "Extension reloaded - please refresh page";
+            statusEl.style.color = "#ff5722";
+            return;
+          }
+
           response = await chrome.tabs.sendMessage(tab.id, {
             action: "toggleDocumentPiP",
           });
         } catch (retryError) {
           console.error("Retry failed:", retryError);
-          statusEl.textContent = "Connection failed - refresh the Anghami page";
+          
+          // Check if it's an extension context error
+          if (retryError.message?.includes("Extension context invalidated")) {
+            statusEl.textContent = "Extension reloaded - please refresh page";
+          } else if (retryError.message?.includes("Receiving end does not exist")) {
+            statusEl.textContent = "Content script not ready - refresh page";
+          } else {
+            statusEl.textContent = "Connection failed - refresh the Anghami page";
+          }
           statusEl.style.color = "#ff5722";
           return;
         }

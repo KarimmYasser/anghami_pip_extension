@@ -848,63 +848,8 @@ class AnghamiDocumentPiP {
       this.cleanup();
     });
 
-    // Handle window resize - enforce minimum dimensions
-    // Try multiple resize event approaches for Document PiP compatibility
-    const handleResize = () => {
-      const currentWidth =
-        this.pipWindow.outerWidth || this.pipWindow.innerWidth;
-      const currentHeight =
-        this.pipWindow.outerHeight || this.pipWindow.innerHeight;
-
-      if (currentWidth < this.minWidth || currentHeight < this.minHeight) {
-        const newWidth = Math.max(currentWidth, this.minWidth);
-        const newHeight = Math.max(currentHeight, this.minHeight);
-
-        // Prevent resize loop by checking if we actually need to resize
-        if (newWidth !== currentWidth || newHeight !== currentHeight) {
-          setTimeout(() => {
-            if (this.pipWindow && !this.pipWindow.closed) {
-              this.pipWindow.resizeTo(newWidth, newHeight);
-            }
-          }, 0);
-        }
-      }
-    };
-
-    // Add multiple event listeners for different resize scenarios
-    this.pipWindow.addEventListener("resize", handleResize);
-
-    // Also try listening on the document and window objects
-    if (this.pipWindow.document) {
-      this.pipWindow.document.defaultView?.addEventListener(
-        "resize",
-        handleResize
-      );
-    }
-
-    // Set up a ResizeObserver as fallback for Document PiP
-    if (typeof ResizeObserver !== "undefined") {
-      try {
-        const ResizeObserverClass =
-          this.pipWindow.ResizeObserver || window.ResizeObserver;
-        const resizeObserver = new ResizeObserverClass(handleResize);
-        resizeObserver.observe(this.pipWindow.document.body);
-
-        // Store reference for cleanup
-        this.resizeObserver = resizeObserver;
-      } catch (e) {}
-    }
-
-    // Set up periodic size monitoring as fallback (Document PiP might not fire resize events properly)
-    this.sizeMonitor = setInterval(() => {
-      if (this.pipWindow && !this.pipWindow.closed) {
-        handleResize();
-      } else {
-        clearInterval(this.sizeMonitor);
-        this.sizeMonitor = null;
-      }
-    }, 500); // Check every 500ms
-
+    // Note: Document PiP windows don't support programmatic resizeTo() without user activation
+    // Minimum size is enforced via CSS and window creation options instead
     // Keyboard shortcuts
     doc.addEventListener("keydown", (e) => {
       switch (e.code) {
@@ -1130,18 +1075,6 @@ class AnghamiDocumentPiP {
     if (this.timeUpdateTimer) {
       clearInterval(this.timeUpdateTimer);
       this.timeUpdateTimer = null;
-    }
-
-    // Cleanup ResizeObserver
-    if (this.resizeObserver) {
-      this.resizeObserver.disconnect();
-      this.resizeObserver = null;
-    }
-
-    // Cleanup size monitor
-    if (this.sizeMonitor) {
-      clearInterval(this.sizeMonitor);
-      this.sizeMonitor = null;
     }
 
     this.isActive = false;
