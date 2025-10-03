@@ -1,5 +1,7 @@
 # 🎵 Anghami PiP Mini Player Extension
 
+![Anghami PiP Cover](anghami_pip_cover.png)
+
 A Chrome extension that creates a **TRUE "Outside Browser" Picture-in-Picture window** for Anghami web using the Document Picture-in-Picture API. Built with **TypeScript** for enhanced reliability and maintainability.
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9.3-blue.svg)](https://www.typescriptlang.org/)
